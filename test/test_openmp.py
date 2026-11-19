@@ -1,10 +1,13 @@
 # Owner(s): ["module: unknown"]
 
 import collections
+import os
+import subprocess
+import sys
 import unittest
 
 import torch
-from torch.testing._internal.common_utils import run_tests, TestCase
+from torch.testing._internal.common_utils import IS_LINUX, run_tests, TestCase
 
 
 try:
@@ -67,6 +70,33 @@ class TestOpenMP_ParallelFor(TestCase):
         ncores = min(5, psutil.cpu_count(logical=False))
         torch.set_num_threads(ncores)
         self.func_rss(300)
+
+
+@unittest.skipIf(not IS_LINUX, "Tests OpenMP thread binding on Linux")
+@unittest.skipIf(not torch.backends.openmp.is_available(), "Requires OpenMP")
+class TestOpenMP_DefaultNumThreads(TestCase):
+    def default_num_threads(self, **env):
+        child_env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("OMP_NUM_THREADS", "MKL_NUM_THREADS")
+        }
+        child_env.update(env)
+        out = subprocess.check_output(
+            [sys.executable, "-c", "import torch; print(torch.get_num_threads())"],
+            env=child_env,
+            text=True,
+        )
+        return int(out.strip().splitlines()[-1])
+
+    def test_thread_binding_keeps_default_num_threads(self):
+        """With OMP_PROC_BIND or OMP_PLACES set, the OpenMP runtime binds the
+        initial thread to a single place as it loads. torch's default thread
+        count must still follow the CPUs the process may use."""
+        expected = self.default_num_threads()
+        for env in ({"OMP_PROC_BIND": "true"}, {"OMP_PLACES": "cores"}):
+            with self.subTest(**env):
+                self.assertEqual(self.default_num_threads(**env), expected)
 
 
 if __name__ == "__main__":

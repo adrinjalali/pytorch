@@ -114,7 +114,18 @@ int intraop_default_num_threads() {
       }
     }
 #endif
+#ifdef _OPENMP
+    // When thread binding is requested (OMP_PROC_BIND, OMP_PLACES,
+    // GOMP_CPU_AFFINITY), the OpenMP runtime binds the initial thread to one
+    // place as it loads, so this thread's affinity mask can be a single CPU
+    // even when the process may use many. omp_get_num_procs() counts the CPUs
+    // available to the process, taking that binding into account.
+    int num_procs = omp_get_num_procs();
+    nthreads = TaskThreadPoolBase::defaultNumThreads(
+        num_procs > 0 ? static_cast<size_t>(num_procs) : 0);
+#else
     nthreads = TaskThreadPoolBase::defaultNumThreads();
+#endif
 #endif
   }
   return static_cast<int>(nthreads);

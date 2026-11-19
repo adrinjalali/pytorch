@@ -34,7 +34,19 @@ class C10_API TaskThreadPoolBase {
 
   virtual ~TaskThreadPoolBase() noexcept = default;
 
+  /**
+   * The machine's physical core count, capped at the number of CPUs the
+   * calling thread may run on (its affinity mask).
+   */
   static size_t defaultNumThreads();
+
+  /**
+   * The machine's physical core count, capped at available_cpus when that is
+   * non-zero. For callers that know the CPU count better than the calling
+   * thread's affinity mask does, e.g. after an OpenMP runtime bound the
+   * thread to a single place.
+   */
+  static size_t defaultNumThreads(size_t available_cpus);
 };
 
 class C10_API ThreadPool : public c10::TaskThreadPoolBase {

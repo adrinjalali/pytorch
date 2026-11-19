@@ -30,6 +30,10 @@ size_t get_cpuset_num_threads() {
 } // namespace
 
 size_t TaskThreadPoolBase::defaultNumThreads() {
+  return defaultNumThreads(get_cpuset_num_threads());
+}
+
+size_t TaskThreadPoolBase::defaultNumThreads(size_t available_cpus) {
   size_t num_threads = 0;
 #if !defined(__powerpc__) && !defined(__s390x__)
   if (cpuinfo_initialize()) {
@@ -44,19 +48,17 @@ size_t TaskThreadPoolBase::defaultNumThreads() {
       // cpuinfo reports the host topology and ignores any cpuset/affinity
       // restriction on the current process, so clamp to the number of CPUs
       // this process is actually allowed to run on.
-      size_t cpuset_threads = get_cpuset_num_threads();
-      if (cpuset_threads > 0 && cpuset_threads < num_threads) {
-        num_threads = cpuset_threads;
+      if (available_cpus > 0 && available_cpus < num_threads) {
+        num_threads = available_cpus;
       }
       return num_threads;
     }
   }
 #endif
   num_threads = std::thread::hardware_concurrency();
-  size_t cpuset_threads = get_cpuset_num_threads();
-  if (cpuset_threads > 0 &&
-      (num_threads == 0 || cpuset_threads < num_threads)) {
-    num_threads = cpuset_threads;
+  if (available_cpus > 0 &&
+      (num_threads == 0 || available_cpus < num_threads)) {
+    num_threads = available_cpus;
   }
   if (num_threads == 0) {
     num_threads = 1;
